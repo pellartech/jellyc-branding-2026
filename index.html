@@ -416,6 +416,31 @@ sleepBtn.addEventListener("click", (e) => {
   }, 5000);
 });
 
+// --- Sleep Z bubbles ---
+const zGroup = document.createElementNS(SVG_NS, "g");
+svg.appendChild(zGroup);
+
+const zBubbles = [];
+const zConfigs = [
+  { startX: 680, startY: 180, size: 70, delay: 0.0, driftX: 20 },
+  { startX: 720, startY: 150, size: 50, delay: 1.2, driftX: 35 },
+];
+
+zConfigs.forEach(cfg => {
+  const txt = document.createElementNS(SVG_NS, "text");
+  txt.textContent = "Z";
+  txt.setAttribute("font-family", "'Arial Black', 'Segoe UI Black', system-ui, sans-serif");
+  txt.setAttribute("font-weight", "900");
+  txt.setAttribute("font-size", cfg.size);
+  txt.setAttribute("fill", "rgba(160, 180, 220, 0.7)");
+  txt.setAttribute("stroke", "rgba(160, 180, 220, 0.2)");
+  txt.setAttribute("stroke-width", "1.5");
+  txt.setAttribute("text-anchor", "middle");
+  txt.setAttribute("opacity", "0");
+  zGroup.appendChild(txt);
+  zBubbles.push({ el: txt, ...cfg });
+});
+
 // --- Question mark bubbles ---
 const qMarkGroup = document.createElementNS(SVG_NS, "g");
 svg.appendChild(qMarkGroup);
@@ -584,7 +609,8 @@ function catmullRomToBezierPath(points) {
 }
 
 // Sample points along a leg with traveling wave displacement
-function sampleLeg(topX, topY, botX, botY, t, phase, amp, speed, bobDrag, mouseInfluence) {
+// curlDir: -1 for curl left, +1 for curl right (toward center of U-pair)
+function sampleLeg(topX, topY, botX, botY, t, phase, amp, speed, bobDrag, mouseInfluence, curlDir) {
   const points = [];
   const len = botY - topY;
 
@@ -602,6 +628,12 @@ function sampleLeg(topX, topY, botX, botY, t, phase, amp, speed, bobDrag, mouseI
     const baseX = topX + (botX - topX) * frac;
     const baseY = topY + len * frac;
 
+    // Sleep curl: curve the lower portion inward (toward pair center)
+    // Increases cubically toward the tip for a natural curl
+    const curlFrac = frac * frac * frac; // cubic = strong curl at tips only
+    const curlX = curlDir * curlFrac * 60 * sleepBlend;
+    const curlY = -curlFrac * 40 * sleepBlend; // tips curl upward slightly
+
     // Mouse influence: push tentacle points away from cursor, more at tips
     let mx = 0, my = 0;
     if (mouseActive) {
@@ -618,8 +650,8 @@ function sampleLeg(topX, topY, botX, botY, t, phase, amp, speed, bobDrag, mouseI
     }
 
     points.push({
-      x: baseX + w1 + w2 + w3 + mx,
-      y: baseY + bobEffect + my
+      x: baseX + w1 + w2 + w3 + mx + curlX,
+      y: baseY + bobEffect + my + curlY
     });
   }
   return points;
@@ -632,25 +664,16 @@ let sleepBlend = 0;
 function buildUPath(pair, t) {
   const { tlx, tly, trx, try_, blx, bly, brx, bry, phase, amp, speed } = pair;
 
-  // Thinking: faster and more agitated
-  const effSpeed = speed + (speed * 1.5) * thinkBlend - (speed * 0.6) * sleepBlend;
-  const effAmp = amp + (amp * 0.3) * thinkBlend - (amp * 0.6) * sleepBlend;
-
-  // Sleep curl: pull bottom endpoints inward and upward toward the top center
-  const centerX = (tlx + trx) / 2;
-  const curlFrac = sleepBlend * 0.4; // 40% curl toward center at full sleep
-
-  // Curled endpoints: pull toward center and upward
-  const cblx = blx + (centerX - blx) * curlFrac;
-  const cbly = bly - (bly - tly) * curlFrac * 0.5;
-  const cbrx = brx + (centerX - brx) * curlFrac;
-  const cbry = bry - (bry - try_) * curlFrac * 0.5;
+  // Thinking: faster; Sleep: slower
+  const effSpeed = speed + (speed * 1.5) * thinkBlend - (speed * 0.5) * sleepBlend;
+  const effAmp = amp + (amp * 0.3) * thinkBlend - (amp * 0.4) * sleepBlend;
 
   const bobPhase = Math.sin(t * BOB_FREQ - 0.8);
   const bobDrag = bobPhase * 12 * (1 - sleepBlend * 0.7);
 
-  const leftPts = sampleLeg(tlx, tly, cblx, cbly, t, phase, effAmp, effSpeed, bobDrag, 1.0);
-  const rightPts = sampleLeg(trx, try_, cbrx, cbry, t, phase + 0.35, effAmp, effSpeed, bobDrag, 1.0);
+  // Left leg curls right (toward center), right leg curls left
+  const leftPts = sampleLeg(tlx, tly, blx, bly, t, phase, effAmp, effSpeed, bobDrag, 1.0, 1);
+  const rightPts = sampleLeg(trx, try_, brx, bry, t, phase + 0.35, effAmp, effSpeed, bobDrag, 1.0, -1);
 
   const arcRadius = (trx - tlx) / 2;
   const topCenterX = (tlx + trx) / 2;
@@ -780,6 +803,48 @@ function animate(time) {
     lightningGroup.setAttribute("opacity", Math.max(0, curOp - 0.08));
     if (curOp <= 0) lightningEls.forEach(lg => lg.setAttribute("opacity", "0"));
   }
+
+  // --- Sleep effects ---
+  const isSleeping = t < sleepUntil;
+  const sleepElapsed = t - (sleepUntil - 5);
+
+  // Dim the head during sleep
+  if (sleepBlend > 0.01) {
+    const headDim = 1 - sleepBlend * 0.35;
+    bellOuter.setAttribute("opacity", headDim);
+    bellMiddle.setAttribute("opacity", headDim);
+    bellInner.setAttribute("opacity", headDim * 0.9);
+  } else {
+    bellOuter.removeAttribute("opacity");
+    bellMiddle.removeAttribute("opacity");
+    bellInner.removeAttribute("opacity");
+  }
+
+  // Z bubbles rising slowly
+  zBubbles.forEach(zb => {
+    if (isSleeping) {
+      const cycleDuration = 3.0;
+      const totalCycle = cycleDuration * zBubbles.length;
+      const localT = ((sleepElapsed - zb.delay) % totalCycle);
+      if (sleepElapsed >= zb.delay && localT < cycleDuration) {
+        const frac = localT / cycleDuration;
+        const opacity = frac < 0.15 ? frac / 0.15 : frac > 0.7 ? (1 - frac) / 0.3 : 1;
+        const riseY = zb.startY - frac * 100; // slow rise
+        const driftX = zb.startX + frac * zb.driftX;
+        const scale = 0.6 + frac * 0.5; // grow slightly as they rise
+        zb.el.setAttribute("x", driftX);
+        zb.el.setAttribute("y", riseY);
+        zb.el.setAttribute("opacity", opacity * 0.8);
+        zb.el.setAttribute("font-size", zb.size * scale);
+      } else {
+        zb.el.setAttribute("opacity", "0");
+      }
+    } else {
+      // Fade out
+      const cur = parseFloat(zb.el.getAttribute("opacity"));
+      if (cur > 0) zb.el.setAttribute("opacity", Math.max(0, cur - 0.05));
+    }
+  });
 
   requestAnimationFrame(animate);
 }
