@@ -366,75 +366,67 @@ svg.appendChild(qMarkGroup);
 
 const qMarks = [];
 const qMarkConfigs = [
-  { startX: 560, startY: 250, size: 50, delay: 0.0, driftX: -25 },
-  { startX: 620, startY: 220, size: 60, delay: 0.8, driftX: 10 },
-  { startX: 670, startY: 260, size: 42, delay: 1.6, driftX: 30 },
-  { startX: 540, startY: 230, size: 36, delay: 2.4, driftX: -40 },
-  { startX: 690, startY: 240, size: 45, delay: 3.2, driftX: 45 },
+  { startX: 580, startY: 240, size: 65, delay: 0.0, driftX: -20 },
+  { startX: 660, startY: 250, size: 55, delay: 1.0, driftX: 25 },
 ];
 
 qMarkConfigs.forEach(cfg => {
   const txt = document.createElementNS(SVG_NS, "text");
   txt.textContent = "?";
-  txt.setAttribute("font-family", "'Segoe UI', system-ui, sans-serif");
-  txt.setAttribute("font-weight", "300");
+  txt.setAttribute("font-family", "'Arial Black', 'Segoe UI Black', system-ui, sans-serif");
+  txt.setAttribute("font-weight", "900");
   txt.setAttribute("font-size", cfg.size);
   txt.setAttribute("fill", "white");
+  txt.setAttribute("stroke", "rgba(255,255,255,0.3)");
+  txt.setAttribute("stroke-width", "2");
   txt.setAttribute("text-anchor", "middle");
   txt.setAttribute("opacity", "0");
   qMarkGroup.appendChild(txt);
   qMarks.push({ el: txt, ...cfg });
 });
 
-// --- Electrical glow filter ---
-const glowFilter = document.createElementNS(SVG_NS, "filter");
-glowFilter.setAttribute("id", "bell-glow");
-glowFilter.setAttribute("x", "-50%"); glowFilter.setAttribute("y", "-50%");
-glowFilter.setAttribute("width", "200%"); glowFilter.setAttribute("height", "200%");
-const feBlur = document.createElementNS(SVG_NS, "feGaussianBlur");
-feBlur.setAttribute("in", "SourceGraphic"); feBlur.setAttribute("stdDeviation", "8");
-feBlur.setAttribute("result", "blur");
-const feFlood = document.createElementNS(SVG_NS, "feFlood");
-feFlood.setAttribute("flood-color", "#88ccff"); feFlood.setAttribute("flood-opacity", "0.6");
-feFlood.setAttribute("result", "color");
-const feComp = document.createElementNS(SVG_NS, "feComposite");
-feComp.setAttribute("in", "color"); feComp.setAttribute("in2", "blur");
-feComp.setAttribute("operator", "in"); feComp.setAttribute("result", "glow");
-const feMerge = document.createElementNS(SVG_NS, "feMerge");
-const mn1 = document.createElementNS(SVG_NS, "feMergeNode"); mn1.setAttribute("in", "glow");
-const mn2 = document.createElementNS(SVG_NS, "feMergeNode"); mn2.setAttribute("in", "SourceGraphic");
-feMerge.appendChild(mn1); feMerge.appendChild(mn2);
-glowFilter.appendChild(feBlur); glowFilter.appendChild(feFlood);
-glowFilter.appendChild(feComp); glowFilter.appendChild(feMerge);
-defs.appendChild(glowFilter);
+// --- Lightning bolts inside the bell ---
+const lightningGroup = document.createElementNS(SVG_NS, "g");
+lightningGroup.setAttribute("opacity", "0");
+svg.insertBefore(lightningGroup, tentacleGroup);
 
-// Glow overlay ellipse on the bell
-const bellGlowEl = document.createElementNS(SVG_NS, "ellipse");
-bellGlowEl.setAttribute("cx", "614"); bellGlowEl.setAttribute("cy", "310");
-bellGlowEl.setAttribute("rx", "175"); bellGlowEl.setAttribute("ry", "90");
-bellGlowEl.setAttribute("fill", "none");
-bellGlowEl.setAttribute("stroke", "#88ccff"); bellGlowEl.setAttribute("stroke-width", "3");
-bellGlowEl.setAttribute("filter", "url(#bell-glow)");
-bellGlowEl.setAttribute("opacity", "0");
-svg.insertBefore(bellGlowEl, tentacleGroup);
-
-// Spark lines for electrical effect
-const sparks = [];
-const sparkConfigs = [
-  { x1: 530, y1: 280, x2: 550, y2: 260 },
-  { x1: 680, y1: 270, x2: 700, y2: 250 },
-  { x1: 590, y1: 230, x2: 610, y2: 210 },
-  { x1: 650, y1: 240, x2: 640, y2: 215 },
+// Lightning bolt SVG paths (jagged lines inside the bell dome)
+const lightningConfigs = [
+  "M 580 290 L 570 310 L 585 305 L 572 340 L 590 325 L 578 360",
+  "M 650 280 L 660 305 L 645 298 L 658 330 L 642 320 L 655 355",
+  "M 610 260 L 600 285 L 618 278 L 605 315 L 620 305 L 608 345",
 ];
-sparkConfigs.forEach(cfg => {
-  const line = document.createElementNS(SVG_NS, "line");
-  line.setAttribute("x1", cfg.x1); line.setAttribute("y1", cfg.y1);
-  line.setAttribute("x2", cfg.x2); line.setAttribute("y2", cfg.y2);
-  line.setAttribute("stroke", "#88ccff"); line.setAttribute("stroke-width", "2");
-  line.setAttribute("stroke-linecap", "round"); line.setAttribute("opacity", "0");
-  svg.insertBefore(line, tentacleGroup);
-  sparks.push(line);
+const lightningEls = [];
+lightningConfigs.forEach(d => {
+  const p = document.createElementNS(SVG_NS, "path");
+  p.setAttribute("d", d);
+  p.setAttribute("fill", "none");
+  p.setAttribute("stroke", "#88ccff");
+  p.setAttribute("stroke-width", "2.5");
+  p.setAttribute("stroke-linecap", "round");
+  p.setAttribute("stroke-linejoin", "round");
+  p.setAttribute("opacity", "0");
+  lightningGroup.appendChild(p);
+  lightningEls.push(p);
 });
+
+// Glow filter for lightning
+const lgGlow = document.createElementNS(SVG_NS, "filter");
+lgGlow.setAttribute("id", "lightning-glow");
+lgGlow.setAttribute("x", "-50%"); lgGlow.setAttribute("y", "-50%");
+lgGlow.setAttribute("width", "200%"); lgGlow.setAttribute("height", "200%");
+const lgBlur = document.createElementNS(SVG_NS, "feGaussianBlur");
+lgBlur.setAttribute("stdDeviation", "4"); lgBlur.setAttribute("result", "blur");
+const lgMerge = document.createElementNS(SVG_NS, "feMerge");
+const lgN1 = document.createElementNS(SVG_NS, "feMergeNode"); lgN1.setAttribute("in", "blur");
+const lgN2 = document.createElementNS(SVG_NS, "feMergeNode"); lgN2.setAttribute("in", "SourceGraphic");
+lgMerge.appendChild(lgN1); lgMerge.appendChild(lgN2);
+lgGlow.appendChild(lgBlur); lgGlow.appendChild(lgMerge);
+defs.appendChild(lgGlow);
+lightningGroup.setAttribute("filter", "url(#lightning-glow)");
+
+// Store original inner bell fill for color transitions
+const bellInnerOrigFill = "url(#radial-gradient-3)";
 
 // --- Define 4 U-shaped tentacle pairs ---
 // Each pair: top-left/right anchor points (fixed under bell), bottom-left/right endpoints (bulbs)
@@ -642,21 +634,20 @@ function animate(time) {
   const isThinking = t < thinkingUntil;
   const thinkElapsed = t - thinkingStarted;
 
-  // Question mark bubbles
+  // Question mark bubbles - one at a time, every ~1s
   qMarks.forEach(qm => {
     if (isThinking) {
-      // Each bubble cycles: rise over ~2s, then reset
-      const cycleDuration = 2.2;
-      const localT = ((thinkElapsed - qm.delay) % cycleDuration);
-      if (thinkElapsed >= qm.delay && localT >= 0) {
-        const frac = localT / cycleDuration; // 0 to 1
-        // Fade in quickly, fade out at end
-        const opacity = frac < 0.15 ? frac / 0.15 : frac > 0.7 ? (1 - frac) / 0.3 : 1;
-        const riseY = qm.startY - frac * 120;
-        const driftX = qm.startX + Math.sin(frac * Math.PI * 2) * qm.driftX * 0.5 + qm.driftX * frac;
+      const cycleDuration = 1.8; // each bubble's full life
+      const totalCycle = cycleDuration * qMarks.length; // stagger across all
+      const localT = ((thinkElapsed - qm.delay) % totalCycle);
+      if (thinkElapsed >= qm.delay && localT < cycleDuration) {
+        const frac = localT / cycleDuration;
+        const opacity = frac < 0.12 ? frac / 0.12 : frac > 0.65 ? (1 - frac) / 0.35 : 1;
+        const riseY = qm.startY - frac * 140;
+        const driftX = qm.startX + Math.sin(frac * Math.PI) * qm.driftX * 0.6;
         qm.el.setAttribute("x", driftX);
         qm.el.setAttribute("y", riseY);
-        qm.el.setAttribute("opacity", opacity * 0.7);
+        qm.el.setAttribute("opacity", opacity * 0.85);
       } else {
         qm.el.setAttribute("opacity", "0");
       }
@@ -665,25 +656,38 @@ function animate(time) {
     }
   });
 
-  // Electrical glow on bell
+  // Inner bell pulsing electric blue + lightning
   if (isThinking) {
-    const glowPulse = 0.3 + 0.4 * (0.5 + 0.5 * Math.sin(t * 8)) + 0.2 * Math.random();
-    bellGlowEl.setAttribute("opacity", glowPulse);
-  } else {
-    // Fade out glow
-    const cur = parseFloat(bellGlowEl.getAttribute("opacity"));
-    bellGlowEl.setAttribute("opacity", Math.max(0, cur - 0.05));
-  }
+    // Pulse the inner bell fill between original and electric blue
+    const pulse = 0.5 + 0.5 * Math.sin(t * 6);
+    const flash = Math.random() > 0.92 ? 1 : 0; // occasional bright flash
+    const intensity = Math.min(1, pulse + flash * 0.5);
+    // Interpolate: electric blue overlay via fill opacity
+    const r = Math.round(40 + intensity * 96);   // 40 -> 136
+    const g = Math.round(50 + intensity * 154);   // 50 -> 204
+    const b = Math.round(80 + intensity * 175);   // 80 -> 255
+    bellInner.style.fill = `rgba(${r}, ${g}, ${b}, ${0.3 + intensity * 0.5})`;
 
-  // Spark lines: rapid flickering
-  sparks.forEach((spark, i) => {
-    if (isThinking) {
-      const flicker = Math.sin(t * 15 + i * 3.7) * Math.sin(t * 23 + i * 7.1);
-      spark.setAttribute("opacity", flicker > 0.3 ? 0.8 : 0);
-    } else {
-      spark.setAttribute("opacity", "0");
+    // Lightning bolts: flash randomly
+    lightningGroup.setAttribute("opacity", "1");
+    lightningEls.forEach((lg, i) => {
+      const flicker = Math.sin(t * 18 + i * 4.3) * Math.sin(t * 31 + i * 7.9);
+      const show = flicker > 0.4 || flash;
+      lg.setAttribute("opacity", show ? (0.6 + Math.random() * 0.4) : 0);
+      // Slightly jitter lightning paths for organic feel
+      if (show) {
+        lg.setAttribute("stroke-width", 1.5 + Math.random() * 2);
+      }
+    });
+  } else {
+    // Fade back to original
+    bellInner.style.fill = "";
+    const curOp = parseFloat(lightningGroup.getAttribute("opacity"));
+    lightningGroup.setAttribute("opacity", Math.max(0, curOp - 0.08));
+    if (curOp <= 0) {
+      lightningEls.forEach(lg => lg.setAttribute("opacity", "0"));
     }
-  });
+  }
 
   requestAnimationFrame(animate);
 }
