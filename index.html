@@ -395,10 +395,11 @@ function updateJellyTilt(time) {
   // Float bob
   const bobY = -10 + 10 * Math.cos(t * BOB_FREQ);
 
-  // More exaggerated follow
-  const shiftX = smoothTiltX * 30;   // max ~30px shift
-  const shiftY = smoothTiltY * 15;   // max ~15px shift
-  const rotate = smoothTiltX * 6;    // max ~6 degrees lean
+  // More exaggerated follow - suppressed during sleep
+  const awake = 1 - sleepBlend;
+  const shiftX = smoothTiltX * 30 * awake;
+  const shiftY = smoothTiltY * 15 * awake;
+  const rotate = smoothTiltX * 6 * awake;
 
   svgContainer.style.transform =
     `translateY(${bobY}px) translateX(${shiftX}px) translateY(${shiftY}px) rotate(${rotate}deg)`;
@@ -718,9 +719,9 @@ function sampleLeg(topX, topY, botX, botY, t, phase, amp, baseSpeed, bobDrag, mo
     const curlX = droopX + Math.sin(spiralAngle) * spiralRadius * 0.4 * sleepBlend;
     const curlY = droopY - (1 - Math.cos(spiralAngle)) * spiralRadius * 0.5 * sleepBlend;
 
-    // Mouse influence
+    // Mouse influence - suppressed during sleep
     let mx = 0, my = 0;
-    if (mouseActive) {
+    if (mouseActive && sleepBlend < 0.5) {
       const px = baseX + w1 + w2 + w3;
       const py = baseY + bobEffect;
       const ddx = px - mouseX;
@@ -803,9 +804,10 @@ function animate(time) {
   if (alertBlend < 0.001) alertBlend = 0;
   if (alertBlend > 0.999) alertBlend = 1;
 
-  // Click pulse: decays over 0.6s
+  // Click pulse: decays over 0.6s - suppressed during sleep
   const pulseDt = t - pulseTime;
-  const pulseScale = pulseDt < 0.6 ? 1 + 0.3 * Math.sin(pulseDt * Math.PI / 0.6) * Math.exp(-pulseDt * 3) : 1;
+  const pulseRaw = pulseDt < 0.6 ? 0.3 * Math.sin(pulseDt * Math.PI / 0.6) * Math.exp(-pulseDt * 3) : 0;
+  const pulseScale = 1 + pulseRaw * (1 - sleepBlend);
 
   pairEls.forEach(pair => {
     const { paths, bulbL, bulbR } = pair;
@@ -1109,7 +1111,7 @@ function animateBell(time) {
   // Jelly wobble: velocity-based skew + squash
   // When moving sideways, the bell skews (lags behind like jelly)
   // When changing direction, it overshoots and wobbles
-  const jellySkewX = smoothVelX * 280;  // horizontal skew from lateral movement
+  const jellySkewX = smoothVelX * 280 * (1 - sleepBlend);  // suppressed during sleep
   const jellySquashX = Math.abs(smoothVelX) * 52.5;  // widens when moving fast
   const jellySquashY = Math.abs(smoothVelX) * -28;  // compresses vertically when moving fast
 
