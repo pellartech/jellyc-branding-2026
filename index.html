@@ -569,13 +569,15 @@ function sampleLeg(topX, topY, botX, botY, t, phase, amp, speed, bobDrag, mouseI
   return points;
 }
 
+// Smoothed thinking blend (0 = idle, 1 = full thinking), updated in animate loop
+let thinkBlend = 0;
+
 function buildUPath(pair, t) {
   const { tlx, tly, trx, try_, blx, bly, brx, bry, phase, amp, speed } = pair;
-  const isThinking = t < thinkingUntil;
 
-  // When thinking: faster and more agitated
-  const effSpeed = isThinking ? speed * 2.5 : speed;
-  const effAmp = isThinking ? amp * 1.3 : amp;
+  // Smooth transition: blend between idle and thinking tentacle params
+  const effSpeed = speed + (speed * 1.5) * thinkBlend;  // up to 2.5x
+  const effAmp = amp + (amp * 0.3) * thinkBlend;        // up to 1.3x
 
   const bobPhase = Math.sin(t * BOB_FREQ - 0.8);
   const bobDrag = bobPhase * 12;
@@ -607,6 +609,12 @@ function buildUPath(pair, t) {
 
 function animate(time) {
   const t = time / 1000;
+
+  // Smooth thinking blend: ramp up/down over ~0.5s
+  const thinkTarget = t < thinkingUntil ? 1 : 0;
+  thinkBlend += (thinkTarget - thinkBlend) * 0.05;
+  if (thinkBlend < 0.001) thinkBlend = 0;
+  if (thinkBlend > 0.999) thinkBlend = 1;
 
   // Click pulse: decays over 0.6s
   const pulseDt = t - pulseTime;
@@ -748,9 +756,16 @@ function animateDecorations(time) {
   // Counter: +10 - 10*cos(PI*t/2) but partially - we want ~70% decoupled
   const counterBob = (10 - 10 * Math.cos(t * BOB_FREQ)) * 0.7;
 
-  const isThinkingDeco = t < thinkingUntil;
+  // Additive thinking wobble: gentle extra movement blended by thinkBlend
+  // This adds on top of existing positions so no teleporting
+  function thinkWobble(t, i, amp) {
+    return {
+      dx: Math.sin(t * 1.8 + i * 2.7) * amp * thinkBlend,
+      dy: Math.cos(t * 1.4 + i * 3.1) * amp * 0.7 * thinkBlend,
+    };
+  }
 
-  // Gears: same positions always, only shimmer/glow changes during thinking
+  // Gears
   gearEls.forEach((el, i) => {
     const cfg = gearConfig[i];
     const dx = Math.sin(t * cfg.driftSpeed + cfg.driftPhase) * cfg.driftAmp
@@ -759,15 +774,16 @@ function animateDecorations(time) {
     const dy = Math.cos(t * cfg.driftSpeed * 0.55 + cfg.driftPhase + 1.1) * cfg.driftAmp * 0.8
              + Math.sin(t * cfg.driftSpeed * 0.3 + cfg.driftPhase + 3.5) * cfg.driftAmp * 0.3
              + counterBob;
+    const tw = thinkWobble(t, i, 8);
     const angle = t * cfg.spinSpeed * 360 * cfg.spinDir;
     el.setAttribute("transform",
-      `translate(${dx}, ${dy}) translate(${cfg.cx}, ${cfg.cy}) scale(0.75) translate(${-cfg.cx}, ${-cfg.cy}) rotate(${angle % 360}, ${cfg.cx}, ${cfg.cy})`);
-    const shimmer = isThinkingDeco ? 0.6 + 0.3 * Math.sin(t * 4 + i * 1.5) : 0.55;
+      `translate(${dx + tw.dx}, ${dy + tw.dy}) translate(${cfg.cx}, ${cfg.cy}) scale(0.75) translate(${-cfg.cx}, ${-cfg.cy}) rotate(${angle % 360}, ${cfg.cx}, ${cfg.cy})`);
+    const shimmer = thinkBlend > 0.01 ? 0.55 + 0.35 * Math.sin(t * 4 + i * 1.5) * thinkBlend : 0.55;
     el.setAttribute("opacity", shimmer);
-    el.style.filter = isThinkingDeco ? `drop-shadow(0 0 ${3 + 2 * Math.sin(t * 5 + i)}px rgba(136,204,255,0.6))` : "";
+    el.style.filter = thinkBlend > 0.01 ? `drop-shadow(0 0 ${(3 + 2 * Math.sin(t * 5 + i)) * thinkBlend}px rgba(136,204,255,${0.6 * thinkBlend}))` : "";
   });
 
-  // Stars: same positions, shimmer during thinking
+  // Stars
   starEls.forEach((el, i) => {
     const cfg = starConfig[i];
     const dx = Math.sin(t * cfg.driftSpeed + cfg.driftPhase) * cfg.driftAmp
@@ -775,16 +791,17 @@ function animateDecorations(time) {
     const dy = Math.cos(t * cfg.driftSpeed * 0.6 + cfg.driftPhase + 0.8) * cfg.driftAmp * 0.7
              + Math.sin(t * cfg.driftSpeed * 0.35 + cfg.driftPhase + 2.5) * cfg.driftAmp * 0.25
              + counterBob;
-    const baseOpacity = isThinkingDeco
-      ? 0.5 + 0.5 * Math.sin(t * cfg.twinkleSpeed * 2.5 + cfg.twinklePhase)
-      : 0.3 + 0.35 * (0.5 + 0.5 * Math.sin(t * cfg.twinkleSpeed + cfg.twinklePhase));
+    const tw = thinkWobble(t, i + 4, 10);
+    const idleOp = 0.3 + 0.35 * (0.5 + 0.5 * Math.sin(t * cfg.twinkleSpeed + cfg.twinklePhase));
+    const thinkOp = 0.5 + 0.5 * Math.sin(t * cfg.twinkleSpeed * 2.5 + cfg.twinklePhase);
+    const baseOpacity = idleOp + (thinkOp - idleOp) * thinkBlend;
     el.setAttribute("transform",
-      `translate(${dx}, ${dy}) translate(${cfg.cx}, ${cfg.cy}) scale(0.75) translate(${-cfg.cx}, ${-cfg.cy})`);
+      `translate(${dx + tw.dx}, ${dy + tw.dy}) translate(${cfg.cx}, ${cfg.cy}) scale(0.75) translate(${-cfg.cx}, ${-cfg.cy})`);
     el.setAttribute("opacity", baseOpacity);
-    el.style.filter = isThinkingDeco ? `drop-shadow(0 0 ${4 + 3 * Math.sin(t * 6 + i * 2)}px rgba(136,204,255,0.7))` : "";
+    el.style.filter = thinkBlend > 0.01 ? `drop-shadow(0 0 ${(4 + 3 * Math.sin(t * 6 + i * 2)) * thinkBlend}px rgba(136,204,255,${0.7 * thinkBlend}))` : "";
   });
 
-  // Diamonds: same positions, shimmer during thinking
+  // Diamonds
   diamondEls.forEach((el, i) => {
     const cfg = diamondConfig[i];
     const dx = Math.sin(t * cfg.driftSpeed + cfg.driftPhase) * cfg.driftAmp
@@ -792,14 +809,15 @@ function animateDecorations(time) {
     const dy = Math.cos(t * cfg.driftSpeed * 0.6 + cfg.driftPhase + 0.5) * cfg.driftAmp * 0.65
              + Math.sin(t * cfg.driftSpeed * 0.35 + cfg.driftPhase + 2.8) * cfg.driftAmp * 0.2
              + counterBob;
+    const tw = thinkWobble(t, i + 6, 7);
     const scale = 0.65 + 0.1 * (0.5 + 0.5 * Math.sin(t * cfg.pulseSpeed + cfg.pulsePhase));
-    const opacity = isThinkingDeco
-      ? 0.5 + 0.4 * (0.5 + 0.5 * Math.sin(t * cfg.pulseSpeed * 2 + cfg.pulsePhase + 0.5))
-      : 0.35 + 0.25 * (0.5 + 0.5 * Math.sin(t * cfg.pulseSpeed + cfg.pulsePhase + 0.5));
+    const idleOp = 0.35 + 0.25 * (0.5 + 0.5 * Math.sin(t * cfg.pulseSpeed + cfg.pulsePhase + 0.5));
+    const thinkOp = 0.5 + 0.4 * (0.5 + 0.5 * Math.sin(t * cfg.pulseSpeed * 2 + cfg.pulsePhase + 0.5));
+    const opacity = idleOp + (thinkOp - idleOp) * thinkBlend;
     el.setAttribute("transform",
-      `translate(${dx}, ${dy}) translate(${cfg.cx}, ${cfg.cy}) scale(${scale}) translate(${-cfg.cx}, ${-cfg.cy})`);
+      `translate(${dx + tw.dx}, ${dy + tw.dy}) translate(${cfg.cx}, ${cfg.cy}) scale(${scale}) translate(${-cfg.cx}, ${-cfg.cy})`);
     el.setAttribute("opacity", opacity);
-    el.style.filter = isThinkingDeco ? `drop-shadow(0 0 ${3 + 2 * Math.sin(t * 4.5 + i * 1.8)}px rgba(136,204,255,0.5))` : "";
+    el.style.filter = thinkBlend > 0.01 ? `drop-shadow(0 0 ${(3 + 2 * Math.sin(t * 4.5 + i * 1.8)) * thinkBlend}px rgba(136,204,255,${0.5 * thinkBlend}))` : "";
   });
 
   requestAnimationFrame(animateDecorations);
