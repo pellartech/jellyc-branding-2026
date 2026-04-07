@@ -70,10 +70,52 @@
     color: #88ccff;
     pointer-events: none;
   }
+
+  .btn-row {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+    z-index: 10;
+  }
+  .btn-row .think-btn {
+    position: static;
+    transform: none;
+  }
+
+  .sleep-btn {
+    background: rgba(100, 120, 180, 0.1);
+    border: 1px solid rgba(100, 120, 180, 0.3);
+    color: rgba(180, 190, 220, 0.8);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    letter-spacing: 1.5px;
+    padding: 10px 28px;
+    border-radius: 24px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+  }
+  .sleep-btn:hover {
+    background: rgba(100, 120, 180, 0.2);
+    border-color: rgba(100, 120, 180, 0.5);
+    color: rgba(200, 210, 230, 1);
+  }
+  .sleep-btn.active {
+    background: rgba(60, 70, 120, 0.3);
+    border-color: rgba(80, 90, 140, 0.5);
+    color: rgba(120, 130, 170, 0.7);
+    pointer-events: none;
+  }
 </style>
 </head>
 <body>
-<button class="think-btn" id="thinkBtn">Think</button>
+<div class="btn-row">
+  <button class="think-btn" id="thinkBtn">Think</button>
+  <button class="sleep-btn" id="sleepBtn">Sleep</button>
+</div>
 <div class="svg-container">
 <?xml version="1.0" encoding="UTF-8"?>
 <svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1178.46 998.5">
@@ -360,6 +402,20 @@ thinkBtn.addEventListener("click", (e) => {
   }, 5000);
 });
 
+// --- Sleep state ---
+let sleepUntil = 0;
+const sleepBtn = document.getElementById("sleepBtn");
+sleepBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  sleepUntil = performance.now() / 1000 + 5;
+  sleepBtn.classList.add("active");
+  sleepBtn.textContent = "Sleeping...";
+  setTimeout(() => {
+    sleepBtn.classList.remove("active");
+    sleepBtn.textContent = "Sleep";
+  }, 5000);
+});
+
 // --- Question mark bubbles ---
 const qMarkGroup = document.createElementNS(SVG_NS, "g");
 svg.appendChild(qMarkGroup);
@@ -569,21 +625,32 @@ function sampleLeg(topX, topY, botX, botY, t, phase, amp, speed, bobDrag, mouseI
   return points;
 }
 
-// Smoothed thinking blend (0 = idle, 1 = full thinking), updated in animate loop
+// Smoothed state blends (0 = idle, 1 = full), updated in animate loop
 let thinkBlend = 0;
+let sleepBlend = 0;
 
 function buildUPath(pair, t) {
   const { tlx, tly, trx, try_, blx, bly, brx, bry, phase, amp, speed } = pair;
 
-  // Smooth transition: blend between idle and thinking tentacle params
-  const effSpeed = speed + (speed * 1.5) * thinkBlend;  // up to 2.5x
-  const effAmp = amp + (amp * 0.3) * thinkBlend;        // up to 1.3x
+  // Thinking: faster and more agitated
+  const effSpeed = speed + (speed * 1.5) * thinkBlend - (speed * 0.6) * sleepBlend;
+  const effAmp = amp + (amp * 0.3) * thinkBlend - (amp * 0.6) * sleepBlend;
+
+  // Sleep curl: pull bottom endpoints inward and upward toward the top center
+  const centerX = (tlx + trx) / 2;
+  const curlFrac = sleepBlend * 0.4; // 40% curl toward center at full sleep
+
+  // Curled endpoints: pull toward center and upward
+  const cblx = blx + (centerX - blx) * curlFrac;
+  const cbly = bly - (bly - tly) * curlFrac * 0.5;
+  const cbrx = brx + (centerX - brx) * curlFrac;
+  const cbry = bry - (bry - try_) * curlFrac * 0.5;
 
   const bobPhase = Math.sin(t * BOB_FREQ - 0.8);
-  const bobDrag = bobPhase * 12;
+  const bobDrag = bobPhase * 12 * (1 - sleepBlend * 0.7);
 
-  const leftPts = sampleLeg(tlx, tly, blx, bly, t, phase, effAmp, effSpeed, bobDrag, 1.0);
-  const rightPts = sampleLeg(trx, try_, brx, bry, t, phase + 0.35, effAmp, effSpeed, bobDrag, 1.0);
+  const leftPts = sampleLeg(tlx, tly, cblx, cbly, t, phase, effAmp, effSpeed, bobDrag, 1.0);
+  const rightPts = sampleLeg(trx, try_, cbrx, cbry, t, phase + 0.35, effAmp, effSpeed, bobDrag, 1.0);
 
   const arcRadius = (trx - tlx) / 2;
   const topCenterX = (tlx + trx) / 2;
@@ -616,6 +683,12 @@ function animate(time) {
   if (thinkBlend < 0.001) thinkBlend = 0;
   if (thinkBlend > 0.999) thinkBlend = 1;
 
+  // Smooth sleep blend
+  const sleepTarget = t < sleepUntil ? 1 : 0;
+  sleepBlend += (sleepTarget - sleepBlend) * 0.04;
+  if (sleepBlend < 0.001) sleepBlend = 0;
+  if (sleepBlend > 0.999) sleepBlend = 1;
+
   // Click pulse: decays over 0.6s
   const pulseDt = t - pulseTime;
   const pulseScale = pulseDt < 0.6 ? 1 + 0.3 * Math.sin(pulseDt * Math.PI / 0.6) * Math.exp(-pulseDt * 3) : 1;
@@ -624,19 +697,27 @@ function animate(time) {
     const { paths, bulbL, bulbR } = pair;
     const { d, lbx, lby, rbx, rby } = buildUPath(pair, t);
 
-    paths.forEach(p => p.setAttribute("d", d));
+    // Dim tentacle strokes during sleep
+    const tentacleOpacity = 1 - sleepBlend * 0.4;
+    paths.forEach(p => {
+      p.setAttribute("d", d);
+      p.setAttribute("opacity", tentacleOpacity);
+    });
 
-    // Bulbs follow endpoints with -10 degree tilt + click pulse
+    // Bulbs follow endpoints with -10 degree tilt + click pulse + sleep dim
     const bScale = pulseScale;
+    const bulbOpacity = 1 - sleepBlend * 0.5;
     bulbL.c.setAttribute("cx", lbx);
     bulbL.c.setAttribute("cy", lby);
     bulbL.g.setAttribute("transform",
       `translate(${lbx}, ${lby}) rotate(-10) scale(${bScale}) translate(${-lbx}, ${-lby})`);
+    bulbL.g.setAttribute("opacity", bulbOpacity);
 
     bulbR.c.setAttribute("cx", rbx);
     bulbR.c.setAttribute("cy", rby);
     bulbR.g.setAttribute("transform",
       `translate(${rbx}, ${rby}) rotate(-10) scale(${bScale}) translate(${-rbx}, ${-rby})`);
+    bulbR.g.setAttribute("opacity", bulbOpacity);
   });
 
   // --- Thinking effects ---
@@ -779,7 +860,8 @@ function animateDecorations(time) {
     el.setAttribute("transform",
       `translate(${dx + tw.dx}, ${dy + tw.dy}) translate(${cfg.cx}, ${cfg.cy}) scale(0.75) translate(${-cfg.cx}, ${-cfg.cy}) rotate(${angle % 360}, ${cfg.cx}, ${cfg.cy})`);
     const shimmer = thinkBlend > 0.01 ? 0.55 + 0.35 * Math.sin(t * 4 + i * 1.5) * thinkBlend : 0.55;
-    el.setAttribute("opacity", shimmer);
+    const sleepDim = 1 - sleepBlend * 0.6;
+    el.setAttribute("opacity", shimmer * sleepDim);
     el.style.filter = thinkBlend > 0.01 ? `drop-shadow(0 0 ${(3 + 2 * Math.sin(t * 5 + i)) * thinkBlend}px rgba(136,204,255,${0.6 * thinkBlend}))` : "";
   });
 
@@ -797,7 +879,8 @@ function animateDecorations(time) {
     const baseOpacity = idleOp + (thinkOp - idleOp) * thinkBlend;
     el.setAttribute("transform",
       `translate(${dx + tw.dx}, ${dy + tw.dy}) translate(${cfg.cx}, ${cfg.cy}) scale(0.75) translate(${-cfg.cx}, ${-cfg.cy})`);
-    el.setAttribute("opacity", baseOpacity);
+    const starSleepDim = 1 - sleepBlend * 0.65;
+    el.setAttribute("opacity", baseOpacity * starSleepDim);
     el.style.filter = thinkBlend > 0.01 ? `drop-shadow(0 0 ${(4 + 3 * Math.sin(t * 6 + i * 2)) * thinkBlend}px rgba(136,204,255,${0.7 * thinkBlend}))` : "";
   });
 
@@ -816,7 +899,8 @@ function animateDecorations(time) {
     const opacity = idleOp + (thinkOp - idleOp) * thinkBlend;
     el.setAttribute("transform",
       `translate(${dx + tw.dx}, ${dy + tw.dy}) translate(${cfg.cx}, ${cfg.cy}) scale(${scale}) translate(${-cfg.cx}, ${-cfg.cy})`);
-    el.setAttribute("opacity", opacity);
+    const diamSleepDim = 1 - sleepBlend * 0.6;
+    el.setAttribute("opacity", opacity * diamSleepDim);
     el.style.filter = thinkBlend > 0.01 ? `drop-shadow(0 0 ${(3 + 2 * Math.sin(t * 4.5 + i * 1.8)) * thinkBlend}px rgba(136,204,255,${0.5 * thinkBlend}))` : "";
   });
 
