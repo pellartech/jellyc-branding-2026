@@ -688,19 +688,21 @@ function sampleLeg(topX, topY, botX, botY, t, phase, amp, speed, bobDrag, mouseI
     const baseX = topX + (botX - topX) * frac;
     const baseY = topY + len * frac;
 
-    // Sleep curl: tight inward spiral like reference image
-    // Starts from 25% down, curls strongly inward and upward at tips
-    const curlStart = 0.25;
+    // Sleep: all tentacles droop to the right and curl
+    // Like a jellyfish falling asleep tilted to one side
+    const curlStart = 0.15;
     const curlProgress = Math.max(0, (frac - curlStart) / (1 - curlStart));
-    // Smooth step easing for natural onset
     const curlEase = curlProgress * curlProgress * (3 - 2 * curlProgress);
-    // Tight spiral: wraps up to ~200 degrees, with increasing radius
-    const spiralAngle = curlEase * Math.PI * 1.1;
-    const spiralRadius = curlEase * len * 0.45;
-    // X: curl inward toward center of the pair
-    const curlX = curlDir * Math.sin(spiralAngle) * spiralRadius * sleepBlend;
-    // Y: tips curl upward strongly, creating the tucked-in look
-    const curlY = -(1 - Math.cos(spiralAngle)) * spiralRadius * 0.7 * sleepBlend;
+
+    // Droop: all tentacles fall to the right, increasing toward tips
+    const droopX = curlEase * len * 0.5 * sleepBlend;  // rightward drift
+    const droopY = -curlEase * len * 0.08 * sleepBlend; // slightly shorter from curling up
+
+    // Curl at tips: spiral curving to the right and upward
+    const spiralAngle = curlEase * Math.PI * 1.2;
+    const spiralRadius = curlEase * len * 0.3;
+    const curlX = droopX + Math.sin(spiralAngle) * spiralRadius * 0.4 * sleepBlend;
+    const curlY = droopY - (1 - Math.cos(spiralAngle)) * spiralRadius * 0.5 * sleepBlend;
 
     // Mouse influence
     let mx = 0, my = 0;
