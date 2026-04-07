@@ -412,49 +412,59 @@ requestAnimationFrame(updateJellyTilt);
 let pulseTime = -10;
 svgContainer.addEventListener("click", () => { pulseTime = performance.now() / 1000; });
 
-// --- Thinking state ---
+// --- Mode state management ---
 let thinkingUntil = 0;
 let thinkingStarted = 0;
+let sleepUntil = 0;
+let alertUntil = 0;
+let modeTimer = null;
+
 const thinkBtn = document.getElementById("thinkBtn");
+const sleepBtn = document.getElementById("sleepBtn");
+const alertBtn = document.getElementById("alertBtn");
+const allBtns = [thinkBtn, sleepBtn, alertBtn];
+
+function disableOtherBtns() {
+  allBtns.forEach(b => { b.disabled = true; b.style.opacity = "0.3"; b.style.pointerEvents = "none"; });
+}
+function enableAllBtns() {
+  clearTimeout(modeTimer);
+  allBtns.forEach(b => { b.disabled = false; b.style.opacity = ""; b.style.pointerEvents = ""; b.classList.remove("active"); });
+  thinkBtn.textContent = "Think";
+  sleepBtn.textContent = "Sleep";
+  alertBtn.textContent = "Alert";
+}
+
 thinkBtn.addEventListener("click", (e) => {
   e.stopPropagation();
   const now = performance.now() / 1000;
   thinkingStarted = now;
   thinkingUntil = now + 5;
+  disableOtherBtns();
+  thinkBtn.style.opacity = "1"; thinkBtn.style.pointerEvents = "none";
   thinkBtn.classList.add("active");
   thinkBtn.textContent = "Thinking...";
-  setTimeout(() => {
-    thinkBtn.classList.remove("active");
-    thinkBtn.textContent = "Think";
-  }, 5000);
+  modeTimer = setTimeout(enableAllBtns, 5000);
 });
 
-// --- Sleep state ---
-let sleepUntil = 0;
-const sleepBtn = document.getElementById("sleepBtn");
 sleepBtn.addEventListener("click", (e) => {
   e.stopPropagation();
   sleepUntil = performance.now() / 1000 + 5;
+  disableOtherBtns();
+  sleepBtn.style.opacity = "1"; sleepBtn.style.pointerEvents = "none";
   sleepBtn.classList.add("active");
   sleepBtn.textContent = "Sleeping...";
-  setTimeout(() => {
-    sleepBtn.classList.remove("active");
-    sleepBtn.textContent = "Sleep";
-  }, 5000);
+  modeTimer = setTimeout(enableAllBtns, 5000);
 });
 
-// --- Alert state ---
-let alertUntil = 0;
-const alertBtn = document.getElementById("alertBtn");
 alertBtn.addEventListener("click", (e) => {
   e.stopPropagation();
   alertUntil = performance.now() / 1000 + 1;
+  disableOtherBtns();
+  alertBtn.style.opacity = "1"; alertBtn.style.pointerEvents = "none";
   alertBtn.classList.add("active");
   alertBtn.textContent = "Alert!";
-  setTimeout(() => {
-    alertBtn.classList.remove("active");
-    alertBtn.textContent = "Alert";
-  }, 1000);
+  modeTimer = setTimeout(enableAllBtns, 1000);
 });
 
 // Exclamation mark above the head
