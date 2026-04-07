@@ -669,12 +669,12 @@ function animate(time) {
     const ib = Math.round(80 + intensity * 175);
     bellInner.style.fill = `rgba(${ir}, ${ig}, ${ib}, ${0.3 + intensity * 0.5})`;
 
-    // Outer bell: subtle blue tint
-    const outerIntensity = intensity * 0.25;
-    const or_ = Math.round(100 + outerIntensity * 36);
-    const og = Math.round(120 + outerIntensity * 84);
-    const ob = Math.round(150 + outerIntensity * 105);
-    bellOuter.style.fill = `rgba(${or_}, ${og}, ${ob}, ${0.15 + outerIntensity * 0.2})`;
+    // Outer bell: transition between white and light blue
+    const outerWave = 0.5 + 0.5 * Math.sin(t * 3.5);
+    const or_ = Math.round(255 - outerWave * 95);   // 255 -> 160
+    const og = Math.round(255 - outerWave * 35);     // 255 -> 220
+    const ob = 255;                                    // stays 255
+    bellOuter.style.fill = `rgba(${or_}, ${og}, ${ob}, 0.35)`;
 
     // Lightning bolts
     lightningGroup.setAttribute("opacity", "1");
@@ -749,44 +749,34 @@ function animateDecorations(time) {
   const counterBob = (10 - 10 * Math.cos(t * BOB_FREQ)) * 0.7;
 
   const isThinkingDeco = t < thinkingUntil;
-  // When thinking: faster drift, brighter, blue shimmer
-  const thinkDriftMul = isThinkingDeco ? 2.0 : 1.0;
-  const thinkSpeedMul = isThinkingDeco ? 1.8 : 1.0;
 
-  // Gears: slow spin + independent lazy drift
+  // Gears: same positions always, only shimmer/glow changes during thinking
   gearEls.forEach((el, i) => {
     const cfg = gearConfig[i];
-    const spd = cfg.driftSpeed * thinkSpeedMul;
-    const amp = cfg.driftAmp * thinkDriftMul;
-    const dx = Math.sin(t * spd + cfg.driftPhase) * amp
-             + Math.sin(t * spd * 0.45 + cfg.driftPhase + 2.3) * amp * 0.4
-             + Math.cos(t * spd * 0.25 + cfg.driftPhase + 4.1) * amp * 0.2;
-    const dy = Math.cos(t * spd * 0.55 + cfg.driftPhase + 1.1) * amp * 0.8
-             + Math.sin(t * spd * 0.3 + cfg.driftPhase + 3.5) * amp * 0.3
+    const dx = Math.sin(t * cfg.driftSpeed + cfg.driftPhase) * cfg.driftAmp
+             + Math.sin(t * cfg.driftSpeed * 0.45 + cfg.driftPhase + 2.3) * cfg.driftAmp * 0.4
+             + Math.cos(t * cfg.driftSpeed * 0.25 + cfg.driftPhase + 4.1) * cfg.driftAmp * 0.2;
+    const dy = Math.cos(t * cfg.driftSpeed * 0.55 + cfg.driftPhase + 1.1) * cfg.driftAmp * 0.8
+             + Math.sin(t * cfg.driftSpeed * 0.3 + cfg.driftPhase + 3.5) * cfg.driftAmp * 0.3
              + counterBob;
-    const spinMul = isThinkingDeco ? 2.5 : 1;
-    const angle = t * cfg.spinSpeed * 360 * cfg.spinDir * spinMul;
+    const angle = t * cfg.spinSpeed * 360 * cfg.spinDir;
     el.setAttribute("transform",
       `translate(${dx}, ${dy}) translate(${cfg.cx}, ${cfg.cy}) scale(0.75) translate(${-cfg.cx}, ${-cfg.cy}) rotate(${angle % 360}, ${cfg.cx}, ${cfg.cy})`);
-    // Shimmer: pulse opacity and add blue tint via CSS filter during thinking
     const shimmer = isThinkingDeco ? 0.6 + 0.3 * Math.sin(t * 4 + i * 1.5) : 0.55;
     el.setAttribute("opacity", shimmer);
     el.style.filter = isThinkingDeco ? `drop-shadow(0 0 ${3 + 2 * Math.sin(t * 5 + i)}px rgba(136,204,255,0.6))` : "";
   });
 
-  // Stars: independent drift + twinkle
+  // Stars: same positions, shimmer during thinking
   starEls.forEach((el, i) => {
     const cfg = starConfig[i];
-    const spd = cfg.driftSpeed * thinkSpeedMul;
-    const amp = cfg.driftAmp * thinkDriftMul;
-    const dx = Math.sin(t * spd + cfg.driftPhase) * amp
-             + Math.cos(t * spd * 0.5 + cfg.driftPhase + 1.5) * amp * 0.4;
-    const dy = Math.cos(t * spd * 0.6 + cfg.driftPhase + 0.8) * amp * 0.7
-             + Math.sin(t * spd * 0.35 + cfg.driftPhase + 2.5) * amp * 0.25
+    const dx = Math.sin(t * cfg.driftSpeed + cfg.driftPhase) * cfg.driftAmp
+             + Math.cos(t * cfg.driftSpeed * 0.5 + cfg.driftPhase + 1.5) * cfg.driftAmp * 0.4;
+    const dy = Math.cos(t * cfg.driftSpeed * 0.6 + cfg.driftPhase + 0.8) * cfg.driftAmp * 0.7
+             + Math.sin(t * cfg.driftSpeed * 0.35 + cfg.driftPhase + 2.5) * cfg.driftAmp * 0.25
              + counterBob;
-    const twinkleSpd = isThinkingDeco ? cfg.twinkleSpeed * 2.5 : cfg.twinkleSpeed;
     const baseOpacity = isThinkingDeco
-      ? 0.5 + 0.5 * Math.sin(t * twinkleSpd + cfg.twinklePhase)
+      ? 0.5 + 0.5 * Math.sin(t * cfg.twinkleSpeed * 2.5 + cfg.twinklePhase)
       : 0.3 + 0.35 * (0.5 + 0.5 * Math.sin(t * cfg.twinkleSpeed + cfg.twinklePhase));
     el.setAttribute("transform",
       `translate(${dx}, ${dy}) translate(${cfg.cx}, ${cfg.cy}) scale(0.75) translate(${-cfg.cx}, ${-cfg.cy})`);
@@ -794,22 +784,17 @@ function animateDecorations(time) {
     el.style.filter = isThinkingDeco ? `drop-shadow(0 0 ${4 + 3 * Math.sin(t * 6 + i * 2)}px rgba(136,204,255,0.7))` : "";
   });
 
-  // Diamonds: independent drift + pulse
+  // Diamonds: same positions, shimmer during thinking
   diamondEls.forEach((el, i) => {
     const cfg = diamondConfig[i];
-    const spd = cfg.driftSpeed * thinkSpeedMul;
-    const amp = cfg.driftAmp * thinkDriftMul;
-    const dx = Math.sin(t * spd + cfg.driftPhase) * amp
-             + Math.cos(t * spd * 0.5 + cfg.driftPhase + 1.8) * amp * 0.35;
-    const dy = Math.cos(t * spd * 0.6 + cfg.driftPhase + 0.5) * amp * 0.65
-             + Math.sin(t * spd * 0.35 + cfg.driftPhase + 2.8) * amp * 0.2
+    const dx = Math.sin(t * cfg.driftSpeed + cfg.driftPhase) * cfg.driftAmp
+             + Math.cos(t * cfg.driftSpeed * 0.5 + cfg.driftPhase + 1.8) * cfg.driftAmp * 0.35;
+    const dy = Math.cos(t * cfg.driftSpeed * 0.6 + cfg.driftPhase + 0.5) * cfg.driftAmp * 0.65
+             + Math.sin(t * cfg.driftSpeed * 0.35 + cfg.driftPhase + 2.8) * cfg.driftAmp * 0.2
              + counterBob;
-    const pulseSpd = isThinkingDeco ? cfg.pulseSpeed * 2 : cfg.pulseSpeed;
-    const scale = isThinkingDeco
-      ? 0.7 + 0.2 * (0.5 + 0.5 * Math.sin(t * pulseSpd + cfg.pulsePhase))
-      : 0.65 + 0.1 * (0.5 + 0.5 * Math.sin(t * cfg.pulseSpeed + cfg.pulsePhase));
+    const scale = 0.65 + 0.1 * (0.5 + 0.5 * Math.sin(t * cfg.pulseSpeed + cfg.pulsePhase));
     const opacity = isThinkingDeco
-      ? 0.5 + 0.4 * (0.5 + 0.5 * Math.sin(t * pulseSpd + cfg.pulsePhase + 0.5))
+      ? 0.5 + 0.4 * (0.5 + 0.5 * Math.sin(t * cfg.pulseSpeed * 2 + cfg.pulsePhase + 0.5))
       : 0.35 + 0.25 * (0.5 + 0.5 * Math.sin(t * cfg.pulseSpeed + cfg.pulsePhase + 0.5));
     el.setAttribute("transform",
       `translate(${dx}, ${dy}) translate(${cfg.cx}, ${cfg.cy}) scale(${scale}) translate(${-cfg.cx}, ${-cfg.cy})`);
